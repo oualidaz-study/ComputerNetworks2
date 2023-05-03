@@ -1,7 +1,7 @@
 # ComputerNetworks2
 For this project, we use SDL2 (https://www.libsdl.org/) to play audio. SDL2 is famously cross-
 platform, and should work on just about any platform where you can get it to compile.
-SDL2 can be installed simply using:
+'SDL2 can be installed simply using:'
 sudo apt install libsdl2-dev
 Or any similar command using a package manager of your choice.
 The provided Makefile should work on most Linux systems. This includes Windows Subsystem for
