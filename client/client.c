@@ -16,6 +16,7 @@
 #include "player.h"
 #include "wave.h"
 #include "player.h"
+#include "asp.h"
 
 #define BIND_PORT 1235
 #define BUFFER_SIZE 2000
@@ -71,7 +72,7 @@ void clean_buffer(char* message){
 }
 
 int setup_udp_socket(){
-    int socket_desc = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int socket_desc = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
     if(socket_desc < 0){
         printf("Error while creating socket\n");
@@ -81,11 +82,11 @@ int setup_udp_socket(){
     return socket_desc;
 }
 
-struct sockaddr_in set_addr(){
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(1234);
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+struct sockaddr_in6 set_addr(){
+    struct sockaddr_in6 addr;
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = htons(1234);
+    inet_pton(AF_INET6, "::1", &addr.sin6_addr);
     return addr;
 }
 
@@ -99,7 +100,7 @@ void bind_addr_to_port(int socket_desc, struct sockaddr_in addr){
     printf("Done with binding\n");
 }
 
-void receive_message(int socket_desc, struct sockaddr_in sender_addr, char* sender_msg){
+void receive_message(int socket_desc, struct sockaddr_in6 sender_addr, char* sender_msg){
     int sender_struct_length = sizeof(sender_addr);
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, BUFFER_SIZE);
@@ -108,21 +109,25 @@ void receive_message(int socket_desc, struct sockaddr_in sender_addr, char* send
         printf("Couldn't receive\n");
         exit(EXIT_FAILURE);
     }
+    char str1[INET_ADDRSTRLEN];
     printf("Received message from IP: %s and port: %i\n",
-           inet_ntoa(sender_addr.sin_addr), ntohs(sender_addr.sin_port));
+           inet_ntop(AF_INET, &sender_addr.sin6_addr, str1, INET_ADDRSTRLEN), ntohs(sender_addr.sin6_port));
     strncpy(sender_msg, buffer, BUFFER_SIZE);
 }
 
-void send_message(int socket_desc, struct sockaddr_in receiver_addr, char* msg){
+void send_message(int socket_desc, struct sockaddr_in6 receiver_addr, char* msg){
+    
     int receiver_struct_length = sizeof(receiver_addr);
+    printf("1\n");
     if (sendto(socket_desc, msg, strlen(msg), 0,
          (struct sockaddr*)&receiver_addr, receiver_struct_length) < 0){
         perror("Error: ");
         return -1;
     }
+    printf("2\n");
 }
 
-void connect_to_server(int socket_desc, struct sockaddr_in server_addr){
+void connect_to_server(int socket_desc, struct sockaddr_in6 server_addr){
     if(connect(socket_desc, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
         perror("Error: ");
@@ -141,22 +146,21 @@ static void sigint_handler(int sig) {
     stop = 1;
 }
 
-char* join_server(int socket_desc){
+char* join_server(struct asp_socket_info* asp){
     
 
     //connect
-    struct sockaddr_in server_addr;
-    bzero(&server_addr, sizeof(server_addr));
-    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server_addr.sin_port = htons(1235);
-    server_addr.sin_family = AF_INET;
+    inet_pton(AF_INET6, "::1", &asp->remote_addr.sin6_addr);
+    asp->remote_addr.sin6_port = htons(1235);
+    asp->remote_addr.sin6_family = AF_INET6;
 
-    connect_to_server(socket_desc, server_addr);
-
+    connect_to_server(asp->sockfd, asp->remote_addr);
+    printf("connected\n");
     // Get input from the user:
     char client_message[2000] = "Hi Server\0";
     // Send the message to server:
-    send_message(socket_desc, server_addr, client_message);
+    printf("talking to server\n");
+    send_message(asp->sockfd, asp->remote_addr, client_message);
 
 
     // Receive the server's response:
@@ -167,7 +171,8 @@ char* join_server(int socket_desc){
     }
     memset(file_name, '\0', 64000);
 
-    receive_message(socket_desc, server_addr, file_name);
+    printf("requesting server\n");
+    receive_message(asp->sockfd, asp->remote_addr, file_name);
     
     printf("Server's response: %s\n", file_name);
     return file_name;
@@ -176,8 +181,9 @@ char* join_server(int socket_desc){
 int main(int argc, char** argv) {
     
     //setup UDP
-    int socket_desc = setup_udp_socket(); // Create UDP socket:
-    char* file_name = join_server(socket_desc);
+    struct asp_socket_info asp;
+    asp.sockfd = setup_udp_socket(); // Create UDP socket:
+    char* file_name = join_server(&asp);
 
     //______________________________________________________________________________
 
@@ -284,7 +290,7 @@ int main(int argc, char** argv) {
     wave_close(&wave);
 
     // Close the socket:
-    close(socket_desc);
+    close(asp.sockfd);
 
     return EXIT_SUCCESS;
 }
