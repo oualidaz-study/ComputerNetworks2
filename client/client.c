@@ -183,6 +183,7 @@ void receive_and_play_audio(int socket_desc, struct player* player, size_t expec
     size_t bytes_to_play = frames_to_play * bytes_per_frame;
     // Receive audio data until the entire song is received or end of transmission is received
     int count_package = 0;
+    int buffer_filled_threshold = buffer_size / 2;  // Adjust the threshold as per your requirements
     while (played < expected_song_size && !endTransmission && stop == 0) {
         struct sockaddr_in6 sender_addr;
         socklen_t sender_struct_length = sizeof(sender_addr);
@@ -254,19 +255,24 @@ void receive_and_play_audio(int socket_desc, struct player* player, size_t expec
 
             /* Ensure our progress bar gets updated nice and fast */
             fflush(stdout);
-            // Introduce a delay to allow the player to catch up
-            usleep(100000); // Delay for 100 milliseconds (adjust as needed)
-        }
 
-        /* 
-         * Wait until there's 1/8th second of audio remaining in the buffer,
-         * this is effectively our ctrl+c latency
-         */
-        player_wait_for_queue_remaining(&player, 0.125);
+            // Check if the buffer has reached the threshold before introducing a delay
+            if (played >= buffer_filled_threshold) {
+                // Calculate the remaining buffer size
+                double remaining_buffer_size = expected_song_size - played;
+                // Calculate the remaining duration based on the buffer size
+                double remaining_duration = (remaining_buffer_size / buffer_size) * duration;
+
+                // Introduce a delay to allow the player to catch up
+                player_wait_for_queue_remaining(player, remaining_duration);
+            }
+        }
     }
     // Clean up
     free(recv_buffer);
 }
+
+
 
 
 

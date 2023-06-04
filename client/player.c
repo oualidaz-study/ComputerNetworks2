@@ -75,6 +75,8 @@ int player_queue(struct player* player, const uint8_t* data, uint32_t bytes) {
     return 0;
 }
 
+
+
 void player_wait_for_queue_remaining(struct player* player, double duration) {
     /* Target number of frames in the buffer */
     const size_t frames = duration * player->sample_rate;
@@ -89,25 +91,19 @@ void player_wait_for_queue_remaining(struct player* player, double duration) {
 
         /* Early exit and prevent overflow */
         if (queued_frames <= frames) {
-            return;
+            break;
         }
 
-        /* Store as double because we need to cast it directly afterwards anywy */
+        /* Calculate the number of frames to sleep */
         double frames_to_sleep = queued_frames - frames;
 
-        /* Calculate in terms of nanoseconds */
-        struct timespec ts = {
-            .tv_sec  = 0,
-            .tv_nsec = (frames_to_sleep / player->sample_rate) * 1e9
-        };
-
-        /* Make ts valid */
-        while (ts.tv_nsec > 1e9) {
-            ts.tv_nsec -= 1e9;
-            ts.tv_sec  += 1;
-        }
+        /* Calculate the sleep time in nanoseconds */
+        uint64_t sleep_time = (uint64_t)((frames_to_sleep / player->sample_rate) * 1e9);
 
         /* Sleep until (approx.) the desired time */
-        (void) clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+        struct timespec ts;
+        ts.tv_sec = sleep_time / 1000000000;
+        ts.tv_nsec = sleep_time % 1000000000;
+        nanosleep(&ts, NULL);
     }
 }
