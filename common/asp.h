@@ -29,8 +29,17 @@ struct asp_socket_info {
     unsigned int has_accepted : 1;
 };
 
-struct asp_packet
-{
-    
-    /* data */
+struct wave_info {
+    uint16_t channels;
+    uint32_t sample_rate;
+    double duration;
+    uint32_t max;
+    uint8_t* cur;
+};
+
+struct RFC768Header {
+    uint16_t source_port;
+    uint16_t destination_port;
+    uint16_t length;
+    uint16_t checksum;
 };
